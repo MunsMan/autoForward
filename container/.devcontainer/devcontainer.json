@@ -1,7 +1,0 @@
-{
-	"name": "Python 3",
-	"image": "mcr.microsoft.com/devcontainers/python:0-3.11",
-	"features": {
-		"ghcr.io/devcontainers/features/sshd:1": {}
-	}
-}
