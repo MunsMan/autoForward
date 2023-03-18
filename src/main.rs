@@ -1,23 +1,15 @@
+use crate::multiplexer::*;
 use std::env;
-use std::fmt;
-use std::fs;
-use std::os::unix::net::UnixListener;
-use std::os::unix::net::UnixStream;
-use std::path::PathBuf;
+use std::io::prelude::*;
+use std::net::TcpListener;
+use std::net::TcpStream;
 use std::process::exit;
 use std::process::Command;
 use std::str;
 use std::thread;
 use std::time;
 
-const DIRECTORY_NAME: &str = "devContainerAutoForward";
-const MAIN_SOCKET_NAME: &str = "main.sock";
-const CONTAINER_PATH: &str = "/devContainer";
-
-struct ContainerState {
-    container_id: String,
-    socket: UnixListener,
-}
+mod multiplexer;
 
 fn parse_input() -> (String, String) {
     let args = env::args().collect::<Vec<String>>();
@@ -34,79 +26,30 @@ fn parse_input() -> (String, String) {
     return (mode.clone(), container_id.clone());
 }
 
-fn create_command_socket(directory_name: PathBuf) -> UnixListener {
-    let socket_path = directory_name.join(MAIN_SOCKET_NAME);
-    if socket_path.exists() {
-        fs::remove_file(socket_path.clone()).expect("Unable to delete old Socket!");
-    }
-    let stream =
-        UnixListener::bind(socket_path.clone()).expect("ERROR: Unable to create UNIX Socket");
-    stream
-}
-
-fn create_base_directory(container_id: &str) -> PathBuf {
-    let mut path = env::temp_dir().join(DIRECTORY_NAME);
-    if !path.exists() {
-        fs::create_dir(path.clone()).expect("ERROR: Unable to create container Directory.");
-    }
-    let mut permissions = fs::metadata(path.clone())
-        .expect(
-            format!(
-                "ERROR: Unable to read permissions of Base Directory: {}",
-                path.clone().display()
-            )
-            .as_str(),
-        )
-        .permissions();
-    permissions.set_readonly(false);
-    fs::set_permissions(path.clone(), permissions)
-        .expect("ERROR: Unable to Set Permission to base Directory");
-    path = path.join(container_id.clone());
-    if !path.exists() {
-        fs::create_dir(path.clone()).expect("ERROR: Unable to create container Directory.");
-    }
-    let mut permissions = fs::metadata(path.clone())
-        .expect(
-            format!(
-                "ERROR: Unable to read permissions of Base Directory: {}",
-                path.clone().display()
-            )
-            .as_str(),
-        )
-        .permissions();
-    permissions.set_readonly(false);
-    fs::set_permissions(path.clone(), permissions)
-        .expect("ERROR: Unable to Set Permission to base Directory");
-    path
-}
-
-fn host(container_id: String) {
-    let base_directory = create_base_directory(&container_id);
-    let socket = create_command_socket(base_directory.clone());
-    let state = ContainerState {
-        container_id,
-        socket,
+fn host(_container_id: String, port: u16) {
+    let socket =
+        TcpListener::bind(format!("172.17.0.1:{port}")).expect("ERROR: Unable to create Socket");
+    println!("Listening on Port {port} for connections");
+    let stream = match socket.accept() {
+        Ok((stream, addr)) => {
+            println!("Connection from {addr}");
+            stream
+        }
+        Err(err) => {
+            eprintln!("Unable to accept connection!\n{err}");
+            exit(1);
+        }
     };
-    for stream in state.socket.incoming() {
-        match stream {
-            Ok(stream) => println!("INFO: {:?}", stream),
-            Err(err) => eprintln!("ERROR: {:?}", err),
-        }
-    }
-}
-#[derive(Debug, PartialEq, Clone)]
-enum Protocol {
-    TCP,
-    UDP,
+    let multi = thread::spawn(|| Multiplexer::new(stream).run());
+    multi.join().unwrap();
 }
 
-impl fmt::Display for Protocol {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Protocol::TCP => write!(f, "{}", "TCP"),
-            Protocol::UDP => write!(f, "{}", "UCP"),
-        }
-    }
+fn request_new_port(port: &ListenPort) -> Message {
+    let function = match port.protocol {
+        Protocol::TCP => Function::CreateTcp,
+        Protocol::UDP => Function::CreateUdp,
+    };
+    create_message(port.port, function, port.app.clone().into_bytes())
 }
 
 #[derive(PartialEq, Clone)]
@@ -177,37 +120,43 @@ fn detect_open_port() -> Vec<ListenPort> {
             protocol: proto,
             app,
         };
-        println!(
-            "{proto:#?} {port} {app}",
-            proto = item.protocol,
-            port = item.port,
-            app = item.app
-        );
         port_list.push(item);
     }
     port_list
 }
 
-fn send_new_port(port: ListenPort) {
-    println!(
-        "INFO: New Open Port\nPort: {pro}{port}\nRunning: {app}",
-        pro = port.protocol,
-        port = port.port,
-        app = port.app
-    );
-}
 fn send_close_port(port: ListenPort) {
     println!("INFO: Closing Port {port}", port = port.port);
 }
 
-fn port_manager(stream: UnixStream) {
+fn send_message(stream: &mut TcpStream, message: Message) -> Result<usize, std::io::Error> {
+    let mut size = stream.write(&encode_header(&message.header))?;
+    size += stream.write(&message.body)?;
+    println!("{message}");
+    Ok(size)
+}
+
+fn port_manager(mut stream: TcpStream) {
     let mut open_port_list: Vec<ListenPort> = Vec::new();
+    let mut timer = 0;
 
     loop {
+        if timer == 60 {
+            println!("Finished!");
+            break;
+        }
         let new_list = detect_open_port();
         for port in new_list.clone() {
             if !open_port_list.contains(&port) {
-                send_new_port(port.clone());
+                let port1 = port.clone();
+                println!(
+                    "INFO: New Open Port\nPort: {pro:?} {port}\nRunning: {app}",
+                    pro = port1.protocol,
+                    port = port1.port,
+                    app = port1.app
+                );
+                send_message(&mut stream, request_new_port(&port))
+                    .expect("ERROR: Unable to read new Port Request");
                 open_port_list.push(port.clone());
             }
         }
@@ -218,23 +167,27 @@ fn port_manager(stream: UnixStream) {
             }
         }
         thread::sleep(time::Duration::from_secs(1));
+        timer += 1;
     }
+    stream.shutdown(std::net::Shutdown::Both).unwrap();
 }
 
-fn container(container_id: String) {
-    let socket = env::temp_dir()
-        .join(CONTAINER_PATH)
-        .join(container_id.clone())
-        .join(MAIN_SOCKET_NAME);
-    let mut stream = UnixStream::connect(socket).expect("Unable to connect to main Socket");
-    thread::spawn(|| port_manager(stream));
+fn container(_container_id: String, port: u16) {
+    let stream = TcpStream::connect(format!("host.docker.internal:{port}"))
+        .expect("ERROR: Unable to connect to Socket");
+    println!("{}", stream.peer_addr().unwrap());
+    let port_listener = thread::spawn(|| port_manager(stream));
+    port_listener
+        .join()
+        .expect("Something went wrong with this thread");
 }
 
 fn main() {
     let (mode, container_id) = parse_input();
+    let port = 5001;
     match mode.as_str() {
-        "host" => host(container_id),
-        "client" => container(container_id),
+        "host" => host(container_id, port),
+        "client" => container(container_id, port),
         _ => println!("ERROR: UNKNOWN MODE"),
     }
 }
