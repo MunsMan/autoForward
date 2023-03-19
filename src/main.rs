@@ -28,7 +28,7 @@ fn parse_input() -> (String, String) {
 
 fn host(_container_id: String, port: u16) {
     let socket =
-        TcpListener::bind(format!("172.17.0.1:{port}")).expect("ERROR: Unable to create Socket");
+        TcpListener::bind(format!("0.0.0.0:{port}")).expect("ERROR: Unable to create Socket");
     println!("Listening on Port {port} for connections");
     let stream = match socket.accept() {
         Ok((stream, addr)) => {
@@ -184,7 +184,7 @@ fn container(_container_id: String, port: u16) {
 
 fn main() {
     let (mode, container_id) = parse_input();
-    let port = 5001;
+    let port = 3000;
     match mode.as_str() {
         "host" => host(container_id, port),
         "client" => container(container_id, port),
