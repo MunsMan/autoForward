@@ -1,8 +1,8 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::fmt;
 use std::io::prelude::*;
-use std::net::TcpStream;
+use std::net::{TcpListener, TcpStream};
 use std::str;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
@@ -13,6 +13,7 @@ pub enum Function {
     CreateUdp,
     Tcp,
     Udp,
+    NewListener,
 }
 pub struct Header {
     message_size: u32,
@@ -24,6 +25,23 @@ pub struct Header {
 pub enum Protocol {
     TCP,
     UDP,
+}
+
+impl Protocol {
+    fn from_bytes(byte: [u8; 1]) -> Protocol {
+        match byte {
+            [1] => Protocol::TCP,
+            [2] => Protocol::UDP,
+            _ => Protocol::TCP,
+        }
+    }
+
+    fn to_bytes(&self) -> [u8; 1] {
+        match self {
+            Protocol::TCP => [1],
+            Protocol::UDP => [2],
+        }
+    }
 }
 
 pub struct Message {
@@ -50,10 +68,14 @@ pub struct Multiplexer {
     connection: HashMap<u16, Connection>,
     receiver: Receiver<Message>,
     sender: Sender<Message>,
+    default: Sender<Message>,
+    receiver_connection: Receiver<Connection>,
 }
 
+#[derive(Clone)]
 struct Connection {
     port: u16,
+    host_port: u16,
     protocol: Protocol,
     app: String,
     connection: Sender<Message>,
@@ -71,23 +93,19 @@ impl Multiplexer {
             .set_nonblocking(true)
             .expect("Unable to enable non Blocking");
         let (sender, receiver) = channel();
-        let mut multi = Multiplexer {
+        let (default_sender, default_receiver) = channel();
+        let (connection_sender, connection_receiver) = channel();
+        let multi = Multiplexer {
             stream: RefCell::new(stream),
             connection: HashMap::new(),
             receiver,
             sender: sender.clone(),
+            default: default_sender,
+            receiver_connection: connection_receiver,
         };
-        let (default_sender, default_receiver) = channel();
-        thread::spawn(move || handle_unknown_port(default_receiver, sender.clone()));
-        multi.connection.insert(
-            0,
-            Connection {
-                port: 0,
-                protocol: Protocol::TCP,
-                app: "App for setting up new ports".to_string(),
-                connection: default_sender,
-            },
-        );
+        thread::spawn(move || {
+            handle_unknown_port(default_receiver, sender.clone(), connection_sender.clone())
+        });
         multi
     }
 
@@ -158,9 +176,22 @@ impl Multiplexer {
         false
     }
 
-    fn handle_socket_message(&self, message: Message) {}
+    fn handle_socket_message(&self, message: Message) {
+        let status = match self.connection.get(&message.header.port) {
+            Some(connection) => connection.connection.send(message),
+            None => self.default.send(message),
+        };
+        match status {
+            Ok(()) => {}
+            Err(err) => eprintln!(
+                "ERROR: Something went wrong with the handle_socket_message!\n{}",
+                err
+            ),
+        }
+    }
 
     pub fn run(mut self) {
+        println!("Multiplexer is Running");
         loop {
             if self.is_readable() {
                 match self.read_message() {
@@ -169,8 +200,11 @@ impl Multiplexer {
                 }
             }
             for message in self.receiver.try_iter() {
-                self.send_message(message);
+                println!("Message from Host:\n{message}");
+                self.send_message(message)
+                    .expect("Something went wrong while forwarding a message");
             }
+            thread::yield_now();
         }
     }
 }
@@ -182,6 +216,7 @@ pub fn encode_header(header: &Header) -> [u8; 8] {
         Function::CreateUdp => 0b0000_1010 as u8,
         Function::Tcp => 0b0000_0100 as u8,
         Function::Udp => 0b0000_0010 as u8,
+        Function::NewListener => 0b0001_0000 as u8,
     };
     result[0] = header.message_size.to_be_bytes()[0];
     result[1] = header.message_size.to_be_bytes()[1];
@@ -226,18 +261,89 @@ pub fn create_message(port: u16, function: Function, message: Vec<u8>) -> Messag
         body: message.clone(),
     }
 }
-fn setup_tcp_listener(multi_sender: Sender<Message>, message: Message) {
-    println!("Setup TCP Listener");
+
+fn get_socket(port: u16) -> (TcpListener, u16) {
+    match TcpListener::bind(format!("localhost:{}", port)) {
+        Ok(socket) => (socket, port),
+        Err(_) => get_socket(port + 1),
+    }
 }
+
+fn tcp_listener(
+    socket: TcpListener,
+    multi_sender: Sender<Message>,
+    label_port: Cell<u16>,
+    listen_port: Cell<u16>,
+    _receiver: Receiver<Message>,
+) {
+    println!(
+        "Starting listening on port: {} as {}",
+        listen_port.get(),
+        label_port.get()
+    );
+    for stream in socket.incoming() {
+        match stream {
+            Ok(mut stream) => {
+                println!("New Connection!");
+                let mut buffer = Vec::new();
+                match stream.read_to_end(&mut buffer) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("ERROR: TCPListener, unable to read Message\n{}", err);
+                        continue;
+                    }
+                };
+                println!("{:#?}", str::from_utf8(&buffer));
+                multi_sender
+                    .send(create_message(label_port.get(), Function::Tcp, buffer))
+                    .expect("Unable to forward message!");
+            }
+            Err(err) => {
+                eprintln!("ERROR: TCPListener, unable to read Message\n{}", err);
+                continue;
+            }
+        };
+    }
+}
+
+fn setup_tcp_listener(
+    multi_sender: Sender<Message>,
+    message: Message,
+    connection_sender: Sender<Connection>,
+) {
+    let (socket, port) = get_socket(message.header.port);
+    let (sender, receiver) = channel();
+    let connection = Connection {
+        port: message.header.port,
+        host_port: port,
+        protocol: Protocol::TCP,
+        app: match str::from_utf8(&message.body) {
+            Ok(s) => s.to_string(),
+            Err(_) => "Unkown".to_string(),
+        },
+        connection: sender,
+    };
+    let label_port = Cell::new(message.header.port.clone());
+    let listen_port = Cell::new(port.clone());
+    thread::spawn(|| tcp_listener(socket, multi_sender, label_port, listen_port, receiver));
+    connection_sender.send(connection);
+}
+
 fn setup_udp_listener(multi_sender: Sender<Message>, message: Message) {
     println!("Setup UDP Listener");
 }
 
-fn handle_unknown_port(receiver: Receiver<Message>, multi_sender: Sender<Message>) {
+fn handle_unknown_port(
+    receiver: Receiver<Message>,
+    multi_sender: Sender<Message>,
+    connection_sender: Sender<Connection>,
+) {
     loop {
         for message in receiver.try_iter() {
             match message.header.function {
-                Function::CreateTcp => setup_tcp_listener(multi_sender.clone(), message),
+                Function::CreateTcp => {
+                    setup_tcp_listener(multi_sender.clone(), message, connection_sender.clone())
+                }
                 Function::CreateUdp => setup_udp_listener(multi_sender.clone(), message),
                 _ => eprintln!("Something Went Wrong here: {message}"),
             }
