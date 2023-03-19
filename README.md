@@ -29,14 +29,22 @@ The Body follows with the Message itself.
 
 ### Function
 
-The Application currently defines 4 Function:
+Functions are defined in two sets, internal and external functions.
+Internal functions should not be propergated by the Multiplexer, rather consumed.
+Internal functions are there to manage the application State.
+External Function are ment for the exchange between Container and Host.
+
 
 |Bit Pattern|Name|Description|
 |:-:|:-:|:-:|
-|`0000 1xxx`| **CREATE** | Message to the Host to listen to a new Socket, the Protocol is encoded in the following 3 Bits |
-|`0000 0000`| **CLOSE** | Message to the Host to close a Socket |
+|`0000 0001`| **CLOSE** | Close Connection and Terminate Program |
 |`0000 0100`| **TCP** | Forward Message as TCP Packet |
 |`0000 0010`| **UDP** | Forward Message as UDP Packet |
+|`0000 1100`| **CREATE TCP** | Create TCP Listener |
+|`0000 1010`| **CREATE UDP** | Create UDP Listener |
+|`0001 0000`| **New Listener**| Notification for the Multiplexer |
+
+
 
 ## Operations
 
