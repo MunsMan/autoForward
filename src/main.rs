@@ -12,22 +12,21 @@ use std::time;
 
 mod multiplexer;
 
-fn parse_input() -> (String, String) {
+fn parse_input() -> String {
     let args = env::args().collect::<Vec<String>>();
-    if args.len() < 3 {
-        eprintln!("ERROR: Please provide Operation and the Container Id");
+    if args.len() < 2 {
+        eprintln!("ERROR: Please provide the Operation Mode");
         exit(1);
     }
-    if args.len() > 3 {
+    if args.len() > 2 {
         eprintln!("ERROR: Too many Arguments");
         exit(1);
     }
     let mode = args.get(1).expect("ERROR: Unable to read Container Id");
-    let container_id = args.get(2).expect("ERROR: Unable to read Container Id");
-    return (mode.clone(), container_id.clone());
+    return mode.clone();
 }
 
-fn host(_container_id: String, port: u16) {
+fn host(port: u16) {
     let socket =
         TcpListener::bind(format!("127.0.0.1:{port}")).expect("ERROR: Unable to create Socket");
     println!("Listening on Port {port} for connections");
@@ -158,7 +157,7 @@ fn port_manager(sender: Sender<Message>) {
     }
 }
 
-fn container(_container_id: String, port: u16) {
+fn container(port: u16) {
     let mut threads = Vec::new();
     let stream = TcpStream::connect(format!("host.docker.internal:{port}"))
         .expect("ERROR: Unable to connect to Socket");
@@ -179,11 +178,11 @@ fn container(_container_id: String, port: u16) {
 }
 
 fn main() {
-    let (mode, container_id) = parse_input();
+    let mode = parse_input();
     let port = 3000;
     match mode.as_str() {
-        "host" => host(container_id, port),
-        "client" => container(container_id, port),
+        "host" => host(port),
+        "client" => container(port),
         _ => println!("ERROR: UNKNOWN MODE"),
     }
 }
