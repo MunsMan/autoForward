@@ -68,10 +68,10 @@ impl fmt::Display for Message {
 pub struct Multiplexer {
     stream: RefCell<TcpStream>,
     connection: Arc<RwLock<HashMap<u16, Arc<Connection>>>>,
-    receiver: Receiver<Message>,
+    receiver: Arc<Mutex<Receiver<Message>>>,
     _sender: Sender<Message>,
     default: Sender<Message>,
-    receiver_connection: Receiver<Connection>,
+    receiver_connection: Arc<Mutex<Receiver<Connection>>>,
 }
 
 struct Connection {
@@ -99,10 +99,10 @@ impl Multiplexer {
         let multi = Multiplexer {
             stream: RefCell::new(stream),
             connection: Arc::new(RwLock::new(HashMap::new())),
-            receiver,
+            receiver: Arc::new(Mutex::new(receiver)),
             _sender: sender.clone(),
             default: default_sender,
-            receiver_connection: connection_receiver,
+            receiver_connection: Arc::new(Mutex::new(connection_receiver)),
         };
         thread::spawn(move || {
             handle_unknown_port(default_receiver, sender.clone(), connection_sender.clone())
@@ -110,14 +110,9 @@ impl Multiplexer {
         multi
     }
 
-    fn _shutdown(&self) {
-        todo!();
-    }
-
-    pub fn run(self) {
+    pub fn run(&self) {
         let read_stream = self.stream.borrow().try_clone().unwrap();
         let mut write_stream = self.stream.borrow().try_clone().unwrap();
-        let receiver = self.receiver;
         let connections = self.connection.clone();
         let default = self.default.clone();
         let read_thread = thread::spawn(move || loop {
@@ -132,15 +127,16 @@ impl Multiplexer {
                 Err(err) => eprintln!("Something went wrong in the Stream\n{err}"),
             }
         });
-        let write_thread = thread::spawn(move || {
-            for message in receiver.iter() {
+        let receiver = self.receiver.clone();
+        thread::spawn(move || {
+            for message in receiver.lock().unwrap().iter() {
                 send_message(&mut write_stream, message).unwrap();
             }
         });
-        let receive_connection = self.receiver_connection;
+        let receive_connection = self.receiver_connection.clone();
         let write_connections = self.connection.clone();
-        let add_connection = thread::spawn(move || {
-            for connection in receive_connection.iter() {
+        thread::spawn(move || {
+            for connection in receive_connection.lock().unwrap().iter() {
                 write_connections
                     .write()
                     .unwrap()
@@ -148,8 +144,6 @@ impl Multiplexer {
             }
         });
         read_thread.join().unwrap();
-        write_thread.join().unwrap();
-        add_connection.join().unwrap();
     }
 }
 
