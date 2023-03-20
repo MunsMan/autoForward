@@ -1,8 +1,5 @@
 {
 	"name": "Rust",
 	"image": "mcr.microsoft.com/devcontainers/rust",
-	"features": {},
-	"appPort": [
-		5000
-	]
+	"features": {}
 }
