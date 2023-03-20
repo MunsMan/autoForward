@@ -154,7 +154,7 @@ fn port_manager(sender: Sender<Message>) {
                 open_port_list.remove(i);
             }
         }
-        thread::sleep(time::Duration::from_secs(1));
+        thread::sleep(time::Duration::from_secs(5));
     }
 }
 
