@@ -5,6 +5,9 @@ use std::io::prelude::*;
 use std::net::{TcpListener, TcpStream};
 use std::str;
 use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::sync::RwLock;
 use std::thread;
 
 #[derive(Debug, PartialEq)]
@@ -65,20 +68,19 @@ impl fmt::Display for Message {
 
 pub struct Multiplexer {
     stream: RefCell<TcpStream>,
-    connection: HashMap<u16, Connection>,
+    connection: Arc<RwLock<HashMap<u16, Arc<Connection>>>>,
     receiver: Receiver<Message>,
     sender: Sender<Message>,
     default: Sender<Message>,
     receiver_connection: Receiver<Connection>,
 }
 
-#[derive(Clone)]
 struct Connection {
     port: u16,
     host_port: u16,
     protocol: Protocol,
     app: String,
-    connection: Sender<Message>,
+    connection: Mutex<Sender<Message>>,
 }
 
 impl Multiplexer {
@@ -89,15 +91,15 @@ impl Multiplexer {
         {
             stream.set_nodelay(true).expect("Unable to enable nodelay");
         }
-        stream
-            .set_nonblocking(true)
-            .expect("Unable to enable non Blocking");
+        // stream
+        //     .set_nonblocking(true)
+        //     .expect("Unable to enable non Blocking");
         let (sender, receiver) = channel();
         let (default_sender, default_receiver) = channel();
         let (connection_sender, connection_receiver) = channel();
         let multi = Multiplexer {
             stream: RefCell::new(stream),
-            connection: HashMap::new(),
+            connection: Arc::new(RwLock::new(HashMap::new())),
             receiver,
             sender: sender.clone(),
             default: default_sender,
@@ -109,103 +111,114 @@ impl Multiplexer {
         multi
     }
 
-    fn add_connection(&mut self, new_connection: Connection) {
-        self.connection
-            .insert(new_connection.port.clone(), new_connection);
-    }
+    fn shutdown(&self) {}
 
-    fn send_message(&self, message: Message) -> Result<usize, std::io::Error> {
-        let mut size;
-        {
-            let mut stream = self.stream.borrow_mut();
-            size = stream.write(&encode_header(&message.header))?;
-            size += stream.write(&message.body)?;
-        }
-        println!(
-            "Sending {port} {function:?}",
-            port = message.header.port,
-            function = message.header.function
-        );
-        Ok(size)
-    }
-
-    fn read_header(&self) -> Result<Header, std::io::Error> {
-        let mut header_buffer = [0 as u8; 8];
-        let size: usize;
-        {
-            let mut stream = match self.stream.try_borrow_mut() {
-                Ok(stream) => stream,
-                Err(_) => return Err(std::io::ErrorKind::InvalidData.into()),
-            };
-            size = stream.read(&mut header_buffer)?;
-        }
-        if size != 8 {
-            return Err(std::io::ErrorKind::InvalidData.into());
-        }
-        Ok(decode_header(&header_buffer))
-    }
-
-    fn read_message(&self) -> Result<Message, std::io::Error> {
-        let header = self.read_header()?;
-        let mut message = Vec::with_capacity(header.message_size as usize);
-        {
-            self.stream.borrow_mut().read(&mut message)?;
-        }
-        println!(
-            "INFO: Message\n\tHeader: {} {:#?} {}\n\tMessage:\n{:#?}",
-            header.message_size,
-            header.function,
-            header.port,
-            str::from_utf8(&message)
-        );
-        Ok(Message {
-            header,
-            body: message,
-        })
-    }
-
-    fn is_readable(&mut self) -> bool {
-        let mut buffer = [0 as u8; 8];
-        let res = self.stream.borrow_mut().peek(buffer.as_mut());
-        if res.is_ok() {
-            match res.ok() {
-                Some(i) => return i == 8,
-                None => return false,
-            }
-        }
-        false
-    }
-
-    fn handle_socket_message(&self, message: Message) {
-        let status = match self.connection.get(&message.header.port) {
-            Some(connection) => connection.connection.send(message),
-            None => self.default.send(message),
-        };
-        match status {
-            Ok(()) => {}
-            Err(err) => eprintln!(
-                "ERROR: Something went wrong with the handle_socket_message!\n{}",
-                err
-            ),
-        }
-    }
-
-    pub fn run(mut self) {
+    pub fn run(self) {
         println!("Multiplexer is Running");
-        loop {
-            if self.is_readable() {
-                match self.read_message() {
-                    Ok(message) => self.handle_socket_message(message),
-                    Err(err) => eprintln!("ERROR: {err}"),
-                }
+        let read_stream = self.stream.borrow().try_clone().unwrap();
+        let mut write_stream = self.stream.borrow().try_clone().unwrap();
+        let receiver = self.receiver;
+        let connections = self.connection.clone();
+        let default = self.default.clone();
+        let read_thread = thread::spawn(move || loop {
+            match read_message(&read_stream) {
+                Ok(message) => match message {
+                    Some(message) => handle_socket_message(connections.clone(), &default, message),
+                    None => {
+                        println!("Container closed Socket!");
+                        break;
+                    }
+                },
+                Err(err) => eprintln!("Something went wrong in the Stream\n{err}"),
             }
-            for message in self.receiver.try_iter() {
-                println!("Message from Host:\n{message}");
-                self.send_message(message)
-                    .expect("Something went wrong while forwarding a message");
+            println!("Busy Waiting!");
+        });
+        let write_thread = thread::spawn(move || {
+            for message in receiver.iter() {
+                send_message(&mut write_stream, message);
             }
-            thread::yield_now();
+        });
+        let receive_connection = self.receiver_connection;
+        let mut write_connections = self.connection.clone();
+        let add_connection = thread::spawn(move || {
+            for connection in receive_connection.iter() {
+                println!("New Connection added: Port = {}", connection.port);
+                write_connections
+                    .write()
+                    .unwrap()
+                    .insert(connection.port, Arc::new(connection));
+            }
+        });
+        read_thread.join();
+        write_thread.join();
+    }
+}
+
+fn read_header(stream: &TcpStream) -> Result<Option<Header>, std::io::Error> {
+    let mut header_buffer = [0 as u8; 8];
+    let size = stream.take(8).read(&mut header_buffer)?;
+    if size == 0 {
+        return Ok(None);
+    }
+    if size != 8 {
+        eprintln!("Only read {size} bytes");
+        return Err(std::io::ErrorKind::InvalidData.into());
+    }
+    Ok(Some(decode_header(&header_buffer)))
+}
+
+fn read_message(stream: &TcpStream) -> Result<Option<Message>, std::io::Error> {
+    let header = match read_header(stream)? {
+        Some(header) => header,
+        None => return Ok(None),
+    };
+    let mut body = Vec::new();
+    let _size = stream
+        .take(header.message_size.into())
+        .read_to_end(&mut body)
+        .unwrap();
+    let message = Message { header, body };
+    println!("{message}");
+    Ok(Some(message))
+}
+
+fn send_message(stream: &mut TcpStream, message: Message) -> Result<usize, std::io::Error> {
+    let buffer = encode_message(&message);
+    let size = stream.write(&buffer)?;
+    println!(
+        "Sending {port} {function:?}",
+        port = message.header.port,
+        function = message.header.function
+    );
+    Ok(size)
+}
+
+fn handle_socket_message(
+    connections: Arc<RwLock<HashMap<u16, Arc<Connection>>>>,
+    default: &Sender<Message>,
+    message: Message,
+) {
+    println!(
+        "Connections:\n{:?}",
+        connections
+            .read()
+            .unwrap()
+            .keys()
+            .map(|key| format!("\t{}\n", key).to_string())
+    );
+    let status = match connections.read().unwrap().get(&message.header.port) {
+        Some(connection) => connection.connection.lock().unwrap().send(message),
+        None => {
+            println!("Connection is unknown!");
+            default.send(message)
         }
+    };
+    match status {
+        Ok(()) => {}
+        Err(err) => eprintln!(
+            "ERROR: Something went wrong with the handle_socket_message!\n{}",
+            err
+        ),
     }
 }
 
@@ -228,6 +241,13 @@ pub fn encode_header(header: &Header) -> [u8; 8] {
     result
 }
 
+pub fn encode_message(message: &Message) -> Vec<u8> {
+    let mut buffer = Vec::new();
+    buffer.append(&mut encode_header(&message.header).to_vec());
+    buffer.append(&mut message.body.to_vec());
+    buffer
+}
+
 fn decode_header(buffer: &[u8; 8]) -> Header {
     Header {
         message_size: u32::from_be_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]),
@@ -242,7 +262,10 @@ fn decode_function(function: u8) -> Function {
         0b0000_1010 => Function::CreateUdp,
         0b0000_0100 => Function::Tcp,
         0b0000_0010 => Function::Udp,
-        _ => todo!(),
+        _ => {
+            println!("{function}");
+            todo!()
+        }
     }
 }
 
@@ -274,29 +297,35 @@ fn tcp_listener(
     multi_sender: Sender<Message>,
     label_port: Cell<u16>,
     listen_port: Cell<u16>,
-    _receiver: Receiver<Message>,
+    receiver: Receiver<Message>,
 ) {
     println!(
         "Starting listening on port: {} as {}",
         listen_port.get(),
         label_port.get()
     );
+    let mut buffer = [0 as u8; 1024];
     for stream in socket.incoming() {
         match stream {
             Ok(mut stream) => {
                 println!("New Connection!");
-                let mut buffer = Vec::new();
-                match stream.read_to_end(&mut buffer) {
-                    Ok(_) => {}
-                    Err(err) => {
-                        eprintln!("ERROR: TCPListener, unable to read Message\n{}", err);
-                        continue;
+                let mut message = Vec::new();
+                loop {
+                    let size = stream.read(&mut buffer).unwrap();
+                    message.append(&mut buffer.to_vec());
+                    if size < 1024 {
+                        break;
                     }
-                };
-                println!("{:#?}", str::from_utf8(&buffer));
+                }
+                println!(
+                    "Received Message\n{}",
+                    create_message(label_port.get(), Function::Tcp, message.clone())
+                );
                 multi_sender
-                    .send(create_message(label_port.get(), Function::Tcp, buffer))
+                    .send(create_message(label_port.get(), Function::Tcp, message))
                     .expect("Unable to forward message!");
+                let response = receiver.recv().unwrap();
+                stream.write(&response.body).unwrap();
             }
             Err(err) => {
                 eprintln!("ERROR: TCPListener, unable to read Message\n{}", err);
@@ -321,12 +350,12 @@ fn setup_tcp_listener(
             Ok(s) => s.to_string(),
             Err(_) => "Unkown".to_string(),
         },
-        connection: sender,
+        connection: Mutex::new(sender),
     };
     let label_port = Cell::new(message.header.port.clone());
     let listen_port = Cell::new(port.clone());
     thread::spawn(|| tcp_listener(socket, multi_sender, label_port, listen_port, receiver));
-    connection_sender.send(connection);
+    connection_sender.send(connection).unwrap();
 }
 
 fn setup_udp_listener(multi_sender: Sender<Message>, message: Message) {
@@ -339,14 +368,67 @@ fn handle_unknown_port(
     connection_sender: Sender<Connection>,
 ) {
     loop {
-        for message in receiver.try_iter() {
+        for message in receiver.iter() {
             match message.header.function {
                 Function::CreateTcp => {
-                    setup_tcp_listener(multi_sender.clone(), message, connection_sender.clone())
+                    setup_tcp_listener(multi_sender.clone(), message, connection_sender.clone());
                 }
                 Function::CreateUdp => setup_udp_listener(multi_sender.clone(), message),
-                _ => eprintln!("Something Went Wrong here: {message}"),
+                _ => eprintln!("ERROR: *handle_unknown_port* Wrong Header Function\n{message}\n\n"),
             }
+        }
+    }
+}
+
+pub fn client_write_stream(mut stream: TcpStream, receiver: Receiver<Message>) {
+    for message in receiver.iter() {
+        match send_message(&mut stream, message) {
+            Ok(_) => {}
+            Err(err) => eprintln!("ERROR: Unable to forward Message:\n{err}"),
+        };
+    }
+}
+
+fn handle_message(message: Message, sender: Sender<Message>) {
+    if message.header.function == Function::Tcp {
+        println!("Received Message:\n{message}");
+        let send_response = sender.clone();
+        let mut request = message;
+        thread::spawn(move || {
+            let mut stream = TcpStream::connect(format!("localhost:{}", request.header.port))
+                .expect(
+                    format!(
+                        "Error: Unable to connect to Socket localhost:{}",
+                        request.header.port
+                    )
+                    .as_str(),
+                );
+            stream.write(&mut request.body).unwrap();
+            let mut buffer = Vec::new();
+            stream.read_to_end(&mut buffer).unwrap();
+            send_response
+                .send(create_message(request.header.port, Function::Tcp, buffer))
+                .unwrap();
+        });
+    } else {
+        println!(
+            "INFO: This Function is currently not supported {:#?}",
+            message.header.function
+        );
+    }
+}
+
+pub fn client_read_stream(mut stream: TcpStream, sender: Sender<Message>) {
+    loop {
+        match read_message(&mut stream) {
+            Ok(message) => match message {
+                Some(message) => handle_message(message, sender.clone()),
+                None => {
+                    eprintln!("Socket closed!");
+                    break;
+                }
+            },
+            Err(err) => eprintln!("Something went wrong with the message:\n{err}"),
         }
     }
 }

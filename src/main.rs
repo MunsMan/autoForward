@@ -1,11 +1,12 @@
 use crate::multiplexer::*;
 use std::env;
-use std::io::prelude::*;
 use std::net::TcpListener;
 use std::net::TcpStream;
 use std::process::exit;
 use std::process::Command;
 use std::str;
+use std::sync::mpsc::channel;
+use std::sync::mpsc::Sender;
 use std::thread;
 use std::time;
 
@@ -28,7 +29,7 @@ fn parse_input() -> (String, String) {
 
 fn host(_container_id: String, port: u16) {
     let socket =
-        TcpListener::bind(format!("0.0.0.0:{port}")).expect("ERROR: Unable to create Socket");
+        TcpListener::bind(format!("127.0.0.1:{port}")).expect("ERROR: Unable to create Socket");
     println!("Listening on Port {port} for connections");
     let stream = match socket.accept() {
         Ok((stream, addr)) => {
@@ -129,22 +130,10 @@ fn send_close_port(port: ListenPort) {
     println!("INFO: Closing Port {port}", port = port.port);
 }
 
-fn send_message(stream: &mut TcpStream, message: Message) -> Result<usize, std::io::Error> {
-    let mut size = stream.write(&encode_header(&message.header))?;
-    size += stream.write(&message.body)?;
-    println!("{message}");
-    Ok(size)
-}
-
-fn port_manager(mut stream: TcpStream) {
+fn port_manager(sender: Sender<Message>) {
     let mut open_port_list: Vec<ListenPort> = Vec::new();
-    let mut timer = 0;
 
     loop {
-        if timer == 60 {
-            println!("Finished!");
-            break;
-        }
         let new_list = detect_open_port();
         for port in new_list.clone() {
             if !open_port_list.contains(&port) {
@@ -155,8 +144,7 @@ fn port_manager(mut stream: TcpStream) {
                     port = port1.port,
                     app = port1.app
                 );
-                send_message(&mut stream, request_new_port(&port))
-                    .expect("ERROR: Unable to read new Port Request");
+                sender.send(request_new_port(&port)).unwrap();
                 open_port_list.push(port.clone());
             }
         }
@@ -167,19 +155,27 @@ fn port_manager(mut stream: TcpStream) {
             }
         }
         thread::sleep(time::Duration::from_secs(1));
-        timer += 1;
     }
-    stream.shutdown(std::net::Shutdown::Both).unwrap();
 }
 
 fn container(_container_id: String, port: u16) {
+    let mut threads = Vec::new();
     let stream = TcpStream::connect(format!("host.docker.internal:{port}"))
         .expect("ERROR: Unable to connect to Socket");
     println!("{}", stream.peer_addr().unwrap());
-    let port_listener = thread::spawn(|| port_manager(stream));
-    port_listener
-        .join()
-        .expect("Something went wrong with this thread");
+    let (sender, receiver) = channel();
+    let read_stream = stream.try_clone().expect("Unable to clone stream");
+    let write_stream = stream.try_clone().expect("Unable to clone stream");
+    let port_sender = sender.clone();
+    let port_thread = thread::spawn(|| port_manager(port_sender));
+    let read_sender = sender.clone();
+    threads.push(thread::spawn(|| {
+        client_read_stream(read_stream, read_sender)
+    }));
+    threads.push(thread::spawn(|| {
+        client_write_stream(write_stream, receiver)
+    }));
+    port_thread.join().unwrap();
 }
 
 fn main() {
