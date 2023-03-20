@@ -192,10 +192,7 @@ fn handle_socket_message(
 ) {
     let status = match connections.read().unwrap().get(&message.header.port) {
         Some(connection) => connection.connection.lock().unwrap().send(message),
-        None => {
-            println!("Connection is unknown!");
-            default.send(message)
-        }
+        None => default.send(message),
     };
     match status {
         Ok(()) => {}
