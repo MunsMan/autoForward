@@ -115,7 +115,6 @@ impl Multiplexer {
     }
 
     pub fn run(self) {
-        println!("Multiplexer is Running");
         let read_stream = self.stream.borrow().try_clone().unwrap();
         let mut write_stream = self.stream.borrow().try_clone().unwrap();
         let receiver = self.receiver;
@@ -132,7 +131,6 @@ impl Multiplexer {
                 },
                 Err(err) => eprintln!("Something went wrong in the Stream\n{err}"),
             }
-            println!("Busy Waiting!");
         });
         let write_thread = thread::spawn(move || {
             for message in receiver.iter() {
@@ -143,7 +141,6 @@ impl Multiplexer {
         let write_connections = self.connection.clone();
         let add_connection = thread::spawn(move || {
             for connection in receive_connection.iter() {
-                println!("New Connection added: Port = {}", connection.port);
                 write_connections
                     .write()
                     .unwrap()
@@ -163,7 +160,6 @@ fn read_header(stream: &TcpStream) -> Result<Option<Header>, std::io::Error> {
         return Ok(None);
     }
     if size != 8 {
-        eprintln!("Only read {size} bytes");
         return Err(std::io::ErrorKind::InvalidData.into());
     }
     Ok(Some(decode_header(&header_buffer)))
@@ -180,18 +176,12 @@ fn read_message(stream: &TcpStream) -> Result<Option<Message>, std::io::Error> {
         .read_to_end(&mut body)
         .unwrap();
     let message = Message { header, body };
-    println!("{message}");
     Ok(Some(message))
 }
 
 fn send_message(stream: &mut TcpStream, message: Message) -> Result<usize, std::io::Error> {
     let buffer = encode_message(&message);
     let size = stream.write(&buffer)?;
-    println!(
-        "Sending {port} {function:?}",
-        port = message.header.port,
-        function = message.header.function
-    );
     Ok(size)
 }
 
@@ -200,14 +190,6 @@ fn handle_socket_message(
     default: &Sender<Message>,
     message: Message,
 ) {
-    println!(
-        "Connections:\n{:?}",
-        connections
-            .read()
-            .unwrap()
-            .keys()
-            .map(|key| format!("\t{}\n", key).to_string())
-    );
     let status = match connections.read().unwrap().get(&message.header.port) {
         Some(connection) => connection.connection.lock().unwrap().send(message),
         None => {
@@ -297,19 +279,13 @@ fn tcp_listener(
     socket: TcpListener,
     multi_sender: Sender<Message>,
     label_port: Cell<u16>,
-    listen_port: Cell<u16>,
+    _listen_port: Cell<u16>,
     receiver: Receiver<Message>,
 ) {
-    println!(
-        "Starting listening on port: {} as {}",
-        listen_port.get(),
-        label_port.get()
-    );
     let mut buffer = [0 as u8; 1024];
     for stream in socket.incoming() {
         match stream {
             Ok(mut stream) => {
-                println!("New Connection!");
                 let mut message = Vec::new();
                 loop {
                     let size = stream.read(&mut buffer).unwrap();
@@ -318,10 +294,6 @@ fn tcp_listener(
                         break;
                     }
                 }
-                println!(
-                    "Received Message\n{}",
-                    create_message(label_port.get(), Function::Tcp, message.clone())
-                );
                 multi_sender
                     .send(create_message(label_port.get(), Function::Tcp, message))
                     .expect("Unable to forward message!");
@@ -393,7 +365,6 @@ pub fn client_write_stream(mut stream: TcpStream, receiver: Receiver<Message>) {
 
 fn handle_message(message: Message, sender: Sender<Message>) {
     if message.header.function == Function::Tcp {
-        println!("Received Message:\n{message}");
         let send_response = sender.clone();
         let mut request = message;
         thread::spawn(move || {
@@ -413,7 +384,7 @@ fn handle_message(message: Message, sender: Sender<Message>) {
                 .unwrap();
         });
     } else {
-        println!(
+        eprintln!(
             "INFO: This Function is currently not supported {:#?}",
             message.header.function
         );
