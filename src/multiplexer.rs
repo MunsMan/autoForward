@@ -16,7 +16,6 @@ pub enum Function {
     CreateUdp,
     Tcp,
     Udp,
-    NewListener,
 }
 pub struct Header {
     message_size: u32,
@@ -31,7 +30,7 @@ pub enum Protocol {
 }
 
 impl Protocol {
-    fn from_bytes(byte: [u8; 1]) -> Protocol {
+    fn _from_bytes(byte: [u8; 1]) -> Protocol {
         match byte {
             [1] => Protocol::TCP,
             [2] => Protocol::UDP,
@@ -39,7 +38,7 @@ impl Protocol {
         }
     }
 
-    fn to_bytes(&self) -> [u8; 1] {
+    fn _to_bytes(&self) -> [u8; 1] {
         match self {
             Protocol::TCP => [1],
             Protocol::UDP => [2],
@@ -70,16 +69,16 @@ pub struct Multiplexer {
     stream: RefCell<TcpStream>,
     connection: Arc<RwLock<HashMap<u16, Arc<Connection>>>>,
     receiver: Receiver<Message>,
-    sender: Sender<Message>,
+    _sender: Sender<Message>,
     default: Sender<Message>,
     receiver_connection: Receiver<Connection>,
 }
 
 struct Connection {
     port: u16,
-    host_port: u16,
-    protocol: Protocol,
-    app: String,
+    _host_port: u16,
+    _protocol: Protocol,
+    _app: String,
     connection: Mutex<Sender<Message>>,
 }
 
@@ -101,7 +100,7 @@ impl Multiplexer {
             stream: RefCell::new(stream),
             connection: Arc::new(RwLock::new(HashMap::new())),
             receiver,
-            sender: sender.clone(),
+            _sender: sender.clone(),
             default: default_sender,
             receiver_connection: connection_receiver,
         };
@@ -111,7 +110,9 @@ impl Multiplexer {
         multi
     }
 
-    fn shutdown(&self) {}
+    fn _shutdown(&self) {
+        todo!();
+    }
 
     pub fn run(self) {
         println!("Multiplexer is Running");
@@ -135,11 +136,11 @@ impl Multiplexer {
         });
         let write_thread = thread::spawn(move || {
             for message in receiver.iter() {
-                send_message(&mut write_stream, message);
+                send_message(&mut write_stream, message).unwrap();
             }
         });
         let receive_connection = self.receiver_connection;
-        let mut write_connections = self.connection.clone();
+        let write_connections = self.connection.clone();
         let add_connection = thread::spawn(move || {
             for connection in receive_connection.iter() {
                 println!("New Connection added: Port = {}", connection.port);
@@ -149,8 +150,9 @@ impl Multiplexer {
                     .insert(connection.port, Arc::new(connection));
             }
         });
-        read_thread.join();
-        write_thread.join();
+        read_thread.join().unwrap();
+        write_thread.join().unwrap();
+        add_connection.join().unwrap();
     }
 }
 
@@ -229,7 +231,6 @@ pub fn encode_header(header: &Header) -> [u8; 8] {
         Function::CreateUdp => 0b0000_1010 as u8,
         Function::Tcp => 0b0000_0100 as u8,
         Function::Udp => 0b0000_0010 as u8,
-        Function::NewListener => 0b0001_0000 as u8,
     };
     result[0] = header.message_size.to_be_bytes()[0];
     result[1] = header.message_size.to_be_bytes()[1];
@@ -344,9 +345,9 @@ fn setup_tcp_listener(
     let (sender, receiver) = channel();
     let connection = Connection {
         port: message.header.port,
-        host_port: port,
-        protocol: Protocol::TCP,
-        app: match str::from_utf8(&message.body) {
+        _host_port: port,
+        _protocol: Protocol::TCP,
+        _app: match str::from_utf8(&message.body) {
             Ok(s) => s.to_string(),
             Err(_) => "Unkown".to_string(),
         },
@@ -358,8 +359,9 @@ fn setup_tcp_listener(
     connection_sender.send(connection).unwrap();
 }
 
-fn setup_udp_listener(multi_sender: Sender<Message>, message: Message) {
+fn setup_udp_listener(_multi_sender: Sender<Message>, _message: Message) {
     println!("Setup UDP Listener");
+    todo!();
 }
 
 fn handle_unknown_port(
