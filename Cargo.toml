@@ -1,7 +1,13 @@
 [package]
-name = "socket"
-version = "0.1.0"
+name = "autoSocket"
+version = "0.0.1"
 edition = "2021"
+license = "MIT"
+description = "A Client Server Application for forwarding Port between a Docker Container and the Host"
+readme = "README.md"
+repository = "https://github.com/MunsMan/autoForward"
+keywords = ["docker", "devcontainer", "port", "forwarding"]
+categories = ["development-tools", "command-line-utilities"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
