@@ -1,4 +1,4 @@
-use socket::*;
+use auto_forward::Multiplexer;
 use std::net::TcpListener;
 use std::process::exit;
 use std::thread;

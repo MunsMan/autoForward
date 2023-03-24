@@ -1,4 +1,4 @@
-use socket::*;
+use auto_forward::*;
 use std::net::TcpStream;
 use std::process::Command;
 use std::str;

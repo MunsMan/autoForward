@@ -1,5 +1,5 @@
 [package]
-name = "autoSocket"
+name = "auto_forward"
 version = "0.0.1"
 edition = "2021"
 license = "MIT"
@@ -8,7 +8,17 @@ readme = "README.md"
 repository = "https://github.com/MunsMan/autoForward"
 keywords = ["docker", "devcontainer", "port", "forwarding"]
 categories = ["development-tools", "command-line-utilities"]
-
+include = ["src/"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+
+[[bin]]
+name = "container"
+path = "src/bin/container.rs"
+
+[[bin]]
+name = "host"
+path = "src/bin/host.rs"
 
 [dependencies]

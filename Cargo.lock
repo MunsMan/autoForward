@@ -3,5 +3,5 @@
 version = 3
 
 [[package]]
-name = "autoSocket"
+name = "auto_forward"
 version = "0.0.1"
