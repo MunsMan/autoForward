@@ -3,7 +3,7 @@ run-name: Release Container binary Version ${{ github.event.release.tag_name }}
 
 on:
   release:
-    type: [created]
+    types: [created]
   
 jobs:
   release:
