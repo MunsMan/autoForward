@@ -16,7 +16,7 @@ jobs:
           path: main
       
       - name: Install latest rust toolchain
-        uses: actions-rc/toolchain@1
+        uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           default: true
