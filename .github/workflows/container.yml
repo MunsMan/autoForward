@@ -1,0 +1,35 @@
+name: Release Container binary
+run-name: Release Container binary Version ${{ github.event.release.tag_name }}
+
+on:
+  release:
+    type: [create]
+  
+jobs:
+  release:
+    name: release ${{ github.event.release.tag_name }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          path: main
+      
+      - name: Install latest rust toolchain
+        uses: actions-rc/toolchain@1
+        with:
+          toolchain: stable
+          default: true
+          override: true
+      
+      - name: Build
+        run: cargo build --release --bin container --target x86_64-unknown-linux-gnu && mv target/release/container target/release/container_x86_64
+        
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            target/release/container_x86_64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
