@@ -19,7 +19,10 @@ jobs:
             default: true
             override: true
       - name: Build
-        run: cargo build --release --bin container --target x86_64-unknown-linux-musl && mv target/x86_64-unknown-linux-musl/release/container target/release/container_x86_64
+        run: |
+          rustup target add x86_64-unknown-linux-musl
+          cargo build --release --bin container --target x86_64-unknown-linux-musl
+          mv target/x86_64-unknown-linux-musl/release/container target/release/container_x86_64
         
       - name: Release
         uses: softprops/action-gh-release@v1
