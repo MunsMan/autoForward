@@ -3,6 +3,13 @@
 A Rust implementation for port forwarding from a [devContainer](https://containers.dev) to the Host.
 The goal is to provide a developer friendly experience similar to VS Code, but editor independent.
 
+## Motivation
+
+I'm currently trying to switch from VS Code to a more lightweight Editor (currently trying [Helix](https://helix-editor.com)) and my battery is thanking me.
+But VS Code is pretty handsome editor, and I was missing many handy features, like the devContainer.
+Therefore, I started looking into the devContainerCLI, which is lacking the autoForward Feature, so here we go.
+I'm giving it a shot to solve my problem, and I hope somebody can benefit from my work as well.
+
 ## Overview
 
 This Feature is based on a Server Client Model, which needs the Server running on the Host.
