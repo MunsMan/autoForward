@@ -329,7 +329,7 @@ pub fn create_message(port: u16, function: Function, message: Vec<u8>) -> Messag
     let header = create_header(port, message.len() as u32, function);
     Message {
         header,
-        body: message.clone(),
+        body: message,
     }
 }
 
