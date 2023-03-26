@@ -1,4 +1,4 @@
-name: Rust
+name: Rust Testing
 
 on:
   pull_request:
