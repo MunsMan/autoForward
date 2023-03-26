@@ -126,8 +126,7 @@ fn main() {
     let write_stream = stream.try_clone().expect("Unable to clone stream");
     let port_sender = sender.clone();
     let port_thread = thread::spawn(|| port_manager(port_sender));
-    let read_sender = sender.clone();
-    thread::spawn(|| client_read_stream(read_stream, read_sender));
+    thread::spawn(|| client_read_stream(read_stream, sender));
     thread::spawn(|| client_write_stream(write_stream, receiver));
     port_thread.join().unwrap();
 }
