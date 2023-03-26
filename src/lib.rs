@@ -200,6 +200,59 @@ fn handle_socket_message(
     }
 }
 
+#[cfg(test)]
+mod test_handle_socket_message {
+    use super::*;
+
+    #[test]
+    fn handling_default() {
+        let connections: Arc<RwLock<HashMap<u16, Arc<Connection>>>> =
+            Arc::new(RwLock::new(HashMap::new()));
+        let (sender, receiver) = channel::<Message>();
+        let message = Message {
+            header: Header {
+                message_size: 0,
+                function: Function::CreateTcp,
+                port: 1234,
+            },
+            body: Vec::new(),
+        };
+        handle_socket_message(connections, &sender, message.clone());
+        let res = receiver.recv().unwrap();
+        assert_eq!(message, res);
+    }
+
+    #[test]
+    fn handling_connection() {
+        let connections: Arc<RwLock<HashMap<u16, Arc<Connection>>>> =
+            Arc::new(RwLock::new(HashMap::new()));
+        let (sender, receiver) = channel::<Message>();
+        let connection = Connection {
+            port: 1234,
+            _host_port: 1234,
+            _protocol: Protocol::TCP,
+            _app: "".to_string(),
+            connection: Mutex::new(sender.clone()),
+        };
+        connections
+            .write()
+            .unwrap()
+            .insert(1234, Arc::new(connection));
+        let message = Message {
+            header: Header {
+                message_size: 0,
+                function: Function::CreateTcp,
+                port: 1234,
+            },
+            body: Vec::new(),
+        };
+        let (default, _) = channel();
+        handle_socket_message(connections, &default, message.clone());
+        let res = receiver.recv().unwrap();
+        assert_eq!(message, res);
+    }
+}
+
 pub fn encode_header(header: &Header) -> [u8; 8] {
     let mut result = [0 as u8; 8];
     let function = match header.function {
