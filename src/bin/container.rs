@@ -47,7 +47,7 @@ fn detect_open_port() -> Vec<ListenPort> {
     let mut port_list: Vec<ListenPort> = Vec::new();
     for row in table {
         let port_str: &str = match row.get(header.len() - 1) {
-            Some(port) => port.split(":").last().unwrap_or(port),
+            Some(port) => port.split(':').last().unwrap_or(port),
             None => continue,
         };
         let port = match port_str.parse::<u16>() {
