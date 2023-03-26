@@ -452,9 +452,9 @@ fn handle_message(message: Message, sender: Sender<Message>) {
     }
 }
 
-pub fn client_read_stream(mut stream: TcpStream, sender: Sender<Message>) {
+pub fn client_read_stream(stream: TcpStream, sender: Sender<Message>) {
     loop {
-        match read_message(&mut stream) {
+        match read_message(&stream) {
             Ok(message) => match message {
                 Some(message) => handle_message(message, sender.clone()),
                 None => {
