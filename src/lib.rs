@@ -27,6 +27,19 @@ impl Function {
             Function::Udp => 0b0000_0010,
         }
     }
+
+    fn decode(byte: u8) -> Function {
+        match byte {
+            0b0000_1100 => Function::CreateTcp,
+            0b0000_1010 => Function::CreateUdp,
+            0b0000_0100 => Function::Tcp,
+            0b0000_0010 => Function::Udp,
+            _ => {
+                println!("{byte}");
+                todo!()
+            }
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -52,7 +65,7 @@ impl Header {
     pub fn decode(buffer: &[u8; 8]) -> Header {
         Header {
             message_size: u32::from_be_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]),
-            function: decode_function(buffer[4]),
+            function: Function::decode(buffer[4]),
             port: u16::from_be_bytes([buffer[5], buffer[6]]),
         }
     }
