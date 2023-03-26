@@ -87,6 +87,15 @@ pub struct Message {
     pub body: Vec<u8>,
 }
 
+impl Message {
+    fn encode(&self) -> Vec<u8> {
+        let mut buffer = Vec::new();
+        buffer.append(&mut self.header.encode().to_vec());
+        buffer.append(&mut self.body.to_vec());
+        buffer
+    }
+}
+
 impl fmt::Display for Message {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
@@ -210,7 +219,7 @@ fn read_message(stream: &TcpStream) -> Result<Option<Message>, std::io::Error> {
 }
 
 fn send_message(stream: &mut TcpStream, message: Message) -> Result<usize, std::io::Error> {
-    let buffer = encode_message(&message);
+    let buffer = message.encode();
     let size = stream.write(&buffer)?;
     Ok(size)
 }
@@ -283,13 +292,6 @@ mod test_handle_socket_message {
         let res = receiver.recv().unwrap();
         assert_eq!(message, res);
     }
-}
-
-pub fn encode_message(message: &Message) -> Vec<u8> {
-    let mut buffer = Vec::new();
-    buffer.append(&mut message.header.encode().to_vec());
-    buffer.append(&mut message.body.to_vec());
-    buffer
 }
 
 #[cfg(test)]
