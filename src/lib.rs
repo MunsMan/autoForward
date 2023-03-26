@@ -36,6 +36,28 @@ pub struct Header {
     port: u16,
 }
 
+impl Header {
+    pub fn encode(&self) -> [u8; 8] {
+        let mut result = [0; 8];
+        result[0] = self.message_size.to_be_bytes()[0];
+        result[1] = self.message_size.to_be_bytes()[1];
+        result[2] = self.message_size.to_be_bytes()[2];
+        result[3] = self.message_size.to_be_bytes()[3];
+        result[4] = self.function.encode();
+        result[5] = self.port.to_be_bytes()[0];
+        result[6] = self.port.to_be_bytes()[1];
+        result
+    }
+
+    pub fn decode(buffer: &[u8; 8]) -> Header {
+        Header {
+            message_size: u32::from_be_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]),
+            function: decode_function(buffer[4]),
+            port: u16::from_be_bytes([buffer[5], buffer[6]]),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Protocol {
     TCP,
@@ -170,7 +192,7 @@ fn read_header(stream: &TcpStream) -> Result<Option<Header>, std::io::Error> {
     if size != 8 {
         return Err(std::io::ErrorKind::InvalidData.into());
     }
-    Ok(Some(decode_header(&header_buffer)))
+    Ok(Some(Header::decode(&header_buffer)))
 }
 
 fn read_message(stream: &TcpStream) -> Result<Option<Message>, std::io::Error> {
@@ -263,31 +285,11 @@ mod test_handle_socket_message {
     }
 }
 
-pub fn encode_header(header: &Header) -> [u8; 8] {
-    let mut result = [0; 8];
-    result[0] = header.message_size.to_be_bytes()[0];
-    result[1] = header.message_size.to_be_bytes()[1];
-    result[2] = header.message_size.to_be_bytes()[2];
-    result[3] = header.message_size.to_be_bytes()[3];
-    result[4] = header.function.encode();
-    result[5] = header.port.to_be_bytes()[0];
-    result[6] = header.port.to_be_bytes()[1];
-    result
-}
-
 pub fn encode_message(message: &Message) -> Vec<u8> {
     let mut buffer = Vec::new();
-    buffer.append(&mut encode_header(&message.header).to_vec());
+    buffer.append(&mut message.header.encode().to_vec());
     buffer.append(&mut message.body.to_vec());
     buffer
-}
-
-fn decode_header(buffer: &[u8; 8]) -> Header {
-    Header {
-        message_size: u32::from_be_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]),
-        function: decode_function(buffer[4]),
-        port: u16::from_be_bytes([buffer[5], buffer[6]]),
-    }
 }
 
 #[cfg(test)]
@@ -302,7 +304,7 @@ mod tests {
             function: Function::CreateTcp,
             port: 3000,
         };
-        let result = decode_header(&input_header);
+        let result = Header::decode(&input_header);
         assert_eq!(expected.message_size, result.message_size);
         assert_eq!(expected.function, result.function);
         assert_eq!(expected.port, result.port);
