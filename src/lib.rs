@@ -390,8 +390,8 @@ fn setup_tcp_listener(
         },
         connection: Mutex::new(sender),
     };
-    let label_port = Cell::new(message.header.port.clone());
-    let listen_port = Cell::new(port.clone());
+    let label_port = Cell::new(message.header.port);
+    let listen_port = Cell::new(port);
     thread::spawn(|| tcp_listener(socket, multi_sender, label_port, listen_port, receiver));
     connection_sender.send(connection).unwrap();
 }
@@ -428,7 +428,7 @@ pub fn client_write_stream(mut stream: TcpStream, receiver: Receiver<Message>) {
 
 fn handle_message(message: Message, sender: Sender<Message>) {
     if message.header.function == Function::Tcp {
-        let send_response = sender.clone();
+        let send_response = sender;
         let mut request = message;
         thread::spawn(move || {
             let mut stream = TcpStream::connect(format!("localhost:{}", request.header.port))
