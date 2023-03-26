@@ -23,17 +23,17 @@ fn detect_open_port() -> Vec<ListenPort> {
         .output()
         .expect("ERROR: unable to search for ports");
     let stdout = str::from_utf8(&output.stdout).expect("ERROR: Unable to parse stdout!");
-    let mut results = stdout.split("\n").collect::<Vec<&str>>();
+    let mut results = stdout.split('\n').collect::<Vec<&str>>();
     let header = results
         .remove(0)
-        .split(" ")
+        .split(' ')
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())
         .collect::<Vec<&str>>();
     let mut table = results
         .into_iter()
         .map(|row| {
-            row.split(" ")
+            row.split(' ')
                 .map(|s| s.trim())
                 .filter(|s| !s.is_empty())
                 .collect::<Vec<&str>>()
