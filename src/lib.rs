@@ -71,6 +71,25 @@ impl Header {
     }
 }
 
+#[cfg(test)]
+mod test_header {
+    use super::*;
+
+    #[test]
+    fn decode_header_correctly() {
+        let input_header: [u8; 8] = [0, 0, 0, 200, 0b1100, 0x0B, 0xB8, 0];
+        let expected = Header {
+            message_size: 200,
+            function: Function::CreateTcp,
+            port: 3000,
+        };
+        let result = Header::decode(&input_header);
+        assert_eq!(expected.message_size, result.message_size);
+        assert_eq!(expected.function, result.function);
+        assert_eq!(expected.port, result.port);
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Protocol {
     TCP,
@@ -323,19 +342,6 @@ mod tests {
         assert_eq!(expected.message_size, result.message_size);
         assert_eq!(expected.function, result.function);
         assert_eq!(expected.port, result.port);
-    }
-}
-
-fn decode_function(function: u8) -> Function {
-    match function {
-        0b0000_1100 => Function::CreateTcp,
-        0b0000_1010 => Function::CreateUdp,
-        0b0000_0100 => Function::Tcp,
-        0b0000_0010 => Function::Udp,
-        _ => {
-            println!("{function}");
-            todo!()
-        }
     }
 }
 
