@@ -122,19 +122,33 @@ pub enum Protocol {
 }
 
 impl Protocol {
-    fn _from_bytes(byte: [u8; 1]) -> Protocol {
-        match byte {
-            [1] => Protocol::TCP,
-            [2] => Protocol::UDP,
-            _ => Protocol::TCP,
+    pub fn decode(string: &str) -> Result<Protocol, String> {
+        match string.to_uppercase().as_str() {
+            "TCP" => Ok(Protocol::TCP),
+            "UDP" => Ok(Protocol::UDP),
+            _ => Err(format!("ERROR: Protocol: {string} is not defined")),
         }
     }
+}
 
-    fn _to_bytes(&self) -> [u8; 1] {
-        match self {
-            Protocol::TCP => [1],
-            Protocol::UDP => [2],
-        }
+#[cfg(test)]
+mod test_protocol {
+    use super::*;
+
+    #[test]
+    fn decode_tcp() {
+        assert_eq!(Protocol::TCP, Protocol::decode("TCP").unwrap());
+        assert_eq!(Protocol::TCP, Protocol::decode("tcp").unwrap());
+    }
+    #[test]
+    fn decode_udp() {
+        assert_eq!(Protocol::UDP, Protocol::decode("UDP").unwrap());
+        assert_eq!(Protocol::UDP, Protocol::decode("udp").unwrap());
+    }
+    #[test]
+    #[should_panic]
+    fn decode_unkown() {
+        Protocol::decode("").unwrap();
     }
 }
 
