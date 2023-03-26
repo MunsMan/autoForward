@@ -108,7 +108,7 @@ fn port_manager(sender: Sender<Message>) {
             }
         }
         for (i, port) in open_port_list.clone().iter().enumerate() {
-            if !new_list.contains(&port) {
+            if !new_list.contains(port) {
                 send_close_port(port.clone());
                 open_port_list.remove(i);
             }
