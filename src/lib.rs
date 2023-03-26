@@ -428,7 +428,7 @@ pub fn client_write_stream(mut stream: TcpStream, receiver: Receiver<Message>) {
 
 fn handle_message(message: Message, sender: Sender<Message>) {
     if message.header.function == Function::Tcp {
-        let mut request = message;
+        let request = message;
         thread::spawn(move || {
             let mut stream = TcpStream::connect(format!("localhost:{}", request.header.port))
                 .unwrap_or_else(|err| {
