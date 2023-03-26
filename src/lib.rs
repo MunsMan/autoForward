@@ -17,7 +17,8 @@ pub enum Function {
     Tcp,
     Udp,
 }
-#[derive(PartialEq, Clone)]
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct Header {
     message_size: u32,
     function: Function,
@@ -47,7 +48,7 @@ impl Protocol {
     }
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Message {
     pub header: Header,
     pub body: Vec<u8>,
