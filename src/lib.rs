@@ -363,7 +363,7 @@ fn tcp_listener(
                     .send(create_message(label_port.get(), Function::Tcp, message))
                     .expect("Unable to forward message!");
                 let response = receiver.recv().unwrap();
-                stream.write(&response.body).unwrap();
+                stream.write_all(&response.body).unwrap();
             }
             Err(err) => {
                 eprintln!("ERROR: TCPListener, unable to read Message\n{}", err);
