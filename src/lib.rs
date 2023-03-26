@@ -18,6 +18,17 @@ pub enum Function {
     Udp,
 }
 
+impl Function {
+    fn encode(&self) -> u8 {
+        match self {
+            Function::CreateTcp => 0b0000_1100,
+            Function::CreateUdp => 0b0000_1010,
+            Function::Tcp => 0b0000_0100,
+            Function::Udp => 0b0000_0010,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct Header {
     message_size: u32,
@@ -254,17 +265,11 @@ mod test_handle_socket_message {
 
 pub fn encode_header(header: &Header) -> [u8; 8] {
     let mut result = [0; 8];
-    let function = match header.function {
-        Function::CreateTcp => 0b0000_1100,
-        Function::CreateUdp => 0b0000_1010,
-        Function::Tcp => 0b0000_0100,
-        Function::Udp => 0b0000_0010,
-    };
     result[0] = header.message_size.to_be_bytes()[0];
     result[1] = header.message_size.to_be_bytes()[1];
     result[2] = header.message_size.to_be_bytes()[2];
     result[3] = header.message_size.to_be_bytes()[3];
-    result[4] = function;
+    result[4] = header.function.encode();
     result[5] = header.port.to_be_bytes()[0];
     result[6] = header.port.to_be_bytes()[1];
     result
