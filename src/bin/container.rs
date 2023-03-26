@@ -41,7 +41,7 @@ fn detect_open_port() -> Vec<ListenPort> {
         .filter(|row| row.len() == header.len() + 1)
         .collect::<Vec<Vec<&str>>>();
     table.retain(|r| match r.last() {
-        Some(l) => l.to_string() == "(LISTEN)",
+        Some(l) => *l == "(LISTEN)",
         None => false,
     });
     let mut port_list: Vec<ListenPort> = Vec::new();
@@ -56,7 +56,7 @@ fn detect_open_port() -> Vec<ListenPort> {
         };
         let proto = match row[header
             .iter()
-            .position(|x| x.to_string() == "NODE")
+            .position(|x| *x == "NODE")
             .unwrap_or(header.len() - 2)]
         {
             "TCP" => Protocol::TCP,
