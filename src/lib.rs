@@ -10,13 +10,14 @@ use std::sync::Mutex;
 use std::sync::RwLock;
 use std::thread;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Function {
     CreateTcp,
     CreateUdp,
     Tcp,
     Udp,
 }
+#[derive(PartialEq, Clone)]
 pub struct Header {
     message_size: u32,
     function: Function,
@@ -46,6 +47,7 @@ impl Protocol {
     }
 }
 
+#[derive(PartialEq, Clone)]
 pub struct Message {
     pub header: Header,
     pub body: Vec<u8>,
