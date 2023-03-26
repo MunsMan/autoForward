@@ -428,7 +428,6 @@ pub fn client_write_stream(mut stream: TcpStream, receiver: Receiver<Message>) {
 
 fn handle_message(message: Message, sender: Sender<Message>) {
     if message.header.function == Function::Tcp {
-        let send_response = sender;
         let mut request = message;
         thread::spawn(move || {
             let mut stream = TcpStream::connect(format!("localhost:{}", request.header.port))
@@ -442,7 +441,7 @@ fn handle_message(message: Message, sender: Sender<Message>) {
             stream.write(&mut request.body).unwrap();
             let mut buffer = Vec::new();
             stream.read_to_end(&mut buffer).unwrap();
-            send_response
+            sender
                 .send(create_message(request.header.port, Function::Tcp, buffer))
                 .unwrap();
         });
