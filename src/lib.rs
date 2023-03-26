@@ -108,7 +108,7 @@ impl Multiplexer {
             receiver_connection: Arc::new(Mutex::new(connection_receiver)),
         };
         thread::spawn(move || {
-            handle_unknown_port(default_receiver, sender.clone(), connection_sender.clone())
+            handle_unknown_port(default_receiver, sender.clone(), connection_sender)
         });
         multi
     }
