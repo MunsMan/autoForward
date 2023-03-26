@@ -40,13 +40,10 @@ fn detect_open_port() -> Vec<ListenPort> {
         })
         .filter(|row| row.len() == header.len() + 1)
         .collect::<Vec<Vec<&str>>>();
-    table = table
-        .into_iter()
-        .filter(|r| match r.last() {
-            Some(l) => l.to_string() == "(LISTEN)",
-            None => false,
-        })
-        .collect();
+    table.retain(|r| match r.last() {
+        Some(l) => l.to_string() == "(LISTEN)",
+        None => false,
+    });
     let mut port_list: Vec<ListenPort> = Vec::new();
     for row in table {
         let port_str: &str = match row.get(header.len() - 1) {
