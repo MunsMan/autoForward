@@ -193,10 +193,9 @@ fn handle_socket_message(
     };
     match status {
         Ok(()) => {}
-        Err(err) => eprintln!(
-            "ERROR: Something went wrong with the handle_socket_message!\n{}",
-            err
-        ),
+        Err(err) => {
+            eprintln!("ERROR: Something went wrong with the handle_socket_message!\n{err}")
+        }
     }
 }
 
