@@ -54,14 +54,14 @@ fn detect_open_port() -> Vec<ListenPort> {
             Ok(port) => port,
             Err(_) => continue,
         };
-        let proto = match row[header
-            .iter()
-            .position(|x| *x == "NODE")
-            .unwrap_or(header.len() - 2)]
-        {
-            "TCP" => Protocol::TCP,
-            "UDP" => Protocol::UDP,
-            _ => continue,
+        let proto = match Protocol::decode(
+            row[header
+                .iter()
+                .position(|x| *x == "NODE")
+                .unwrap_or(header.len() - 2)],
+        ) {
+            Ok(protocol) => protocol,
+            Err(_) => continue,
         };
         let app = match row.first() {
             Some(app) => app.to_string(),
