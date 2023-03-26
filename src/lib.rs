@@ -407,15 +407,13 @@ fn handle_unknown_port(
     multi_sender: Sender<Message>,
     connection_sender: Sender<Connection>,
 ) {
-    loop {
-        for message in receiver.iter() {
-            match message.header.function {
-                Function::CreateTcp => {
-                    setup_tcp_listener(multi_sender.clone(), message, connection_sender.clone());
-                }
-                Function::CreateUdp => setup_udp_listener(multi_sender.clone(), message),
-                _ => eprintln!("ERROR: *handle_unknown_port* Wrong Header Function\n{message}\n\n"),
+    for message in receiver.iter() {
+        match message.header.function {
+            Function::CreateTcp => {
+                setup_tcp_listener(multi_sender.clone(), message, connection_sender.clone());
             }
+            Function::CreateUdp => setup_udp_listener(multi_sender.clone(), message),
+            _ => eprintln!("ERROR: *handle_unknown_port* Wrong Header Function\n{message}\n\n"),
         }
     }
 }
