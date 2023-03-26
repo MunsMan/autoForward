@@ -42,6 +42,31 @@ impl Function {
     }
 }
 
+#[cfg(test)]
+mod test_function {
+    use super::*;
+
+    #[test]
+    fn ensure_inverse() {
+        assert_eq!(
+            Function::CreateTcp,
+            Function::decode(Function::encode(&Function::CreateTcp))
+        );
+        assert_eq!(
+            Function::CreateUdp,
+            Function::decode(Function::encode(&Function::CreateUdp))
+        );
+        assert_eq!(
+            Function::Tcp,
+            Function::decode(Function::encode(&Function::Tcp))
+        );
+        assert_eq!(
+            Function::Udp,
+            Function::decode(Function::encode(&Function::Udp))
+        );
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct Header {
     message_size: u32,
