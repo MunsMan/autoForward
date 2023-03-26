@@ -437,7 +437,7 @@ fn handle_message(message: Message, sender: Sender<Message>) {
                         request.header.port
                     )
                 });
-            stream.write(&mut request.body).unwrap();
+            stream.write_all(&request.body).unwrap();
             let mut buffer = Vec::new();
             stream.read_to_end(&mut buffer).unwrap();
             sender
