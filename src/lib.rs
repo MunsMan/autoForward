@@ -431,13 +431,12 @@ fn handle_message(message: Message, sender: Sender<Message>) {
         let mut request = message;
         thread::spawn(move || {
             let mut stream = TcpStream::connect(format!("localhost:{}", request.header.port))
-                .expect(
-                    format!(
-                        "Error: Unable to connect to Socket localhost:{}",
+                .unwrap_or_else(|err| {
+                    panic!(
+                        "Error: Unable to connect to Socket localhost:{}\n{err}",
                         request.header.port
                     )
-                    .as_str(),
-                );
+                });
             stream.write(&mut request.body).unwrap();
             let mut buffer = Vec::new();
             stream.read_to_end(&mut buffer).unwrap();
