@@ -230,6 +230,25 @@ fn decode_header(buffer: &[u8; 8]) -> Header {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decode_header_correctly() {
+        let input_header: [u8; 8] = [0, 0, 0, 200, 0b1100, 0x0B, 0xB8, 0];
+        let expected = Header {
+            message_size: 200,
+            function: Function::CreateTcp,
+            port: 3000,
+        };
+        let result = decode_header(&input_header);
+        assert_eq!(expected.message_size, result.message_size);
+        assert_eq!(expected.function, result.function);
+        assert_eq!(expected.port, result.port);
+    }
+}
+
 fn decode_function(function: u8) -> Function {
     match function {
         0b0000_1100 => Function::CreateTcp,
