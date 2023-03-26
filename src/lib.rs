@@ -151,7 +151,7 @@ impl Multiplexer {
 }
 
 fn read_header(stream: &TcpStream) -> Result<Option<Header>, std::io::Error> {
-    let mut header_buffer = [0 as u8; 8];
+    let mut header_buffer = [0; 8];
     let size = stream.take(8).read(&mut header_buffer)?;
     if size == 0 {
         return Ok(None);
@@ -254,12 +254,12 @@ mod test_handle_socket_message {
 }
 
 pub fn encode_header(header: &Header) -> [u8; 8] {
-    let mut result = [0 as u8; 8];
+    let mut result = [0; 8];
     let function = match header.function {
-        Function::CreateTcp => 0b0000_1100 as u8,
-        Function::CreateUdp => 0b0000_1010 as u8,
-        Function::Tcp => 0b0000_0100 as u8,
-        Function::Udp => 0b0000_0010 as u8,
+        Function::CreateTcp => 0b0000_1100,
+        Function::CreateUdp => 0b0000_1010,
+        Function::Tcp => 0b0000_0100,
+        Function::Udp => 0b0000_0010,
     };
     result[0] = header.message_size.to_be_bytes()[0];
     result[1] = header.message_size.to_be_bytes()[1];
@@ -348,7 +348,7 @@ fn tcp_listener(
     _listen_port: Cell<u16>,
     receiver: Receiver<Message>,
 ) {
-    let mut buffer = [0 as u8; 1024];
+    let mut buffer = [0; 1024];
     for stream in socket.incoming() {
         match stream {
             Ok(mut stream) => {
