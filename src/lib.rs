@@ -366,7 +366,7 @@ fn tcp_listener(
                 stream.write_all(&response.body).unwrap();
             }
             Err(err) => {
-                eprintln!("ERROR: TCPListener, unable to read Message\n{}", err);
+                eprintln!("ERROR: TCPListener, unable to read Message\n{err}");
                 continue;
             }
         };
