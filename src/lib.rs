@@ -334,7 +334,7 @@ pub fn create_message(port: u16, function: Function, message: Vec<u8>) -> Messag
 }
 
 fn get_socket(port: u16) -> (TcpListener, u16) {
-    match TcpListener::bind(format!("localhost:{}", port)) {
+    match TcpListener::bind(format!("localhost:{port}")) {
         Ok(socket) => (socket, port),
         Err(_) => get_socket(port + 1),
     }
