@@ -19,11 +19,9 @@ jobs:
             default: true
             override: true
 
-      - name: Move to source
-        run: cd source
-
       - name: Build
         run: |
+          cd source
           rustup target add x86_64-unknown-linux-musl
           cargo build --release --bin container --target x86_64-unknown-linux-musl
           mv target/x86_64-unknown-linux-musl/release/container target/release/container_x86_64
