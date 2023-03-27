@@ -9,6 +9,10 @@ jobs:
   release:
     name: release ${{ github.event.release.tag_name }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -40,5 +44,6 @@ jobs:
         with:
           publish-features: "true"
           base-path-to-features: "./src"
+          generate-docs: "true"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
