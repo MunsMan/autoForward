@@ -1,10 +1,15 @@
 use auto_forward::Multiplexer;
+use std::env;
 use std::net::TcpListener;
 use std::process::exit;
 use std::thread;
 
 fn main() {
-    let port = 3000;
+    let port = env::args()
+        .nth(1)
+        .unwrap_or("28258".to_string())
+        .parse::<u16>()
+        .unwrap_or(28258);
     let socket =
         TcpListener::bind(format!("127.0.0.1:{port}")).expect("ERROR: Unable to create Socket");
     println!("Listening on Port {port} for connections");
