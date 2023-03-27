@@ -10,8 +10,7 @@
 name: rust-clippy analyze
 
 on:
-  pull_request:
-    # The branches below must be a subset of the branches above
+  push:
     branches: [ "main" ]
 
 jobs:
@@ -33,6 +32,9 @@ jobs:
           toolchain: stable
           components: clippy
           override: true
+
+      - name: Move to source code
+        run: cd source
 
       - name: Install required cargo
         run: cargo install clippy-sarif sarif-fmt
