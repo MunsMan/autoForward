@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 USERNAME="${USERNAME:-"${_REMOTE_USER:-"automatic"}"}"
+PORT="${PORT:-"28258"}"
 
 
 #Functions
@@ -45,7 +46,33 @@ curl -L "https://github.com/MunsMan/autoForward/releases/download/v0.0.2-alpha.4
 
 # Setting up the local Feature Directory
 mkdir "${PROJECT_DIR}"
-cp -f entrypoint.sh "${PROJECT_DIR}"
+
+tee -a "${PROJECT_DIR}/entrypoint.sh" > /dev/null \
+<< EOF
+#!/bin/bash
+
+set -e
+
+PORT=${PORT}
+
+EOF
+
+
+tee -a "${PROJECT_DIR}/entrypoint.sh" > /dev/null \
+<< 'EOF'
+
+ls -l /usr/local/share/auto_forward
+whoami
+
+echo "${PORT}"
+
+/usr/local/share/auto_forward/container "${PORT}"&
+
+echo "Container is Listening!"
+
+exec "$@"
+EOF
+
 cd "${PROJECT_DIR}"
 mv "${DOWNLOAD_DIR}/${BINARY}" "${PROJECT_DIR}/${BINARY}"
 echo | ls
