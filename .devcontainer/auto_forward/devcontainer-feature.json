@@ -3,5 +3,12 @@
   "version": "0.0.1-alpha",
   "name": "Automatic Port Forwading to Host",
   "documentationURL": "https://github.com/MunsMan/autoForward",
-  "entrypoint": "/usr/local/share/auto_forward/entrypoint.sh"
+  "entrypoint": "/usr/local/share/auto_forward/entrypoint.sh",
+  "options": {
+    "host_port": {
+      "type": "string",
+      "description": "The Port with the auto Forward Function connects to. Needs to match the port on the Host Program",
+      "default": "28258"
+    }
+  }
 }
