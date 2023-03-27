@@ -1,4 +1,5 @@
 use auto_forward::*;
+use std::env;
 use std::net::TcpStream;
 use std::process::Command;
 use std::str;
@@ -118,7 +119,11 @@ fn port_manager(sender: Sender<Message>) {
 }
 
 fn main() {
-    let port = 3000;
+    let port = env::args()
+        .nth(1)
+        .unwrap_or("28258".to_string())
+        .parse::<u16>()
+        .unwrap_or(28258);
     let stream = TcpStream::connect(format!("host.docker.internal:{port}"))
         .expect("ERROR: Unable to connect to Socket");
     let (sender, receiver) = channel();
