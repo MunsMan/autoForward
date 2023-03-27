@@ -40,7 +40,7 @@ BINARY="container"
 mkdir "${DOWNLOAD_DIR}"
 
 # Downloading Binary File
-curl -L "https://github.com/MunsMan/autoForward/releases/download/v0.0.2-alpha.4/container_x86_64" >> "$DOWNLOAD_DIR/$BINARY"
+curl -sL https://github.com/munsman/autoForward/releases/latest/download/container_x86_64 >> "$DOWNLOAD_DIR/$BINARY"
 
 
 
