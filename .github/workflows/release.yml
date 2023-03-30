@@ -25,7 +25,6 @@ jobs:
 
       - name: Build
         run: |
-          cd source
           rustup target add x86_64-unknown-linux-musl
           cargo build --release --bin container --target x86_64-unknown-linux-musl
           mv target/x86_64-unknown-linux-musl/release/container target/release/container_x86_64
@@ -43,7 +42,7 @@ jobs:
         uses: devcontainers/action@v1
         with:
           publish-features: "true"
-          base-path-to-features: "./src"
+          base-path-to-features: "./feature/src"
           generate-docs: "true"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
