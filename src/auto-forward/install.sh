@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 USERNAME="${USERNAME:-"${_REMOTE_USER:-"automatic"}"}"
 PORT="${PORT:-"28258"}"
+VERSION="${VERSION:-"latest"}"
 
 
 #Functions
@@ -40,7 +41,7 @@ BINARY="container"
 mkdir "${DOWNLOAD_DIR}"
 
 # Downloading Binary File
-curl -sL https://github.com/munsman/autoForward/releases/latest/download/container_x86_64 >> "$DOWNLOAD_DIR/$BINARY"
+curl -sL "https://github.com/munsman/autoForward/releases/${VERSION}/download/container_x86_64" >> "$DOWNLOAD_DIR/$BINARY"
 
 
 

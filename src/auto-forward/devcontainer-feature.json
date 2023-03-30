@@ -9,6 +9,11 @@
       "type": "string",
       "description": "The Port with the auto Forward Function connects to. Needs to match the port on the Host Program",
       "default": "28258"
+    },
+    "version": {
+      "type": "string",
+      "description": "A specific version for testing and development. The Advice is to use latest",
+      "default": "latest"
     }
   }
 }
