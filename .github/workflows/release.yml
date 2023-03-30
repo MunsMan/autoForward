@@ -42,7 +42,9 @@ jobs:
         uses: devcontainers/action@v1
         with:
           publish-features: "true"
-          base-path-to-features: "./feature/src"
+          base-path-to-features: "./feature/src/"
+          oci-registry: "ghcr.io"
           generate-docs: "true"
+          features-namespace: "MunsMan/autoForward"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
