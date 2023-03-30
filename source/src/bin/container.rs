@@ -1,16 +1,22 @@
 use auto_forward::*;
+use std::collections::HashMap;
 use std::env;
+use std::io::Read;
+use std::io::Write;
 use std::net::TcpStream;
 use std::process::Command;
 use std::str;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Sender;
+use std::sync::Arc;
+use std::sync::RwLock;
 use std::thread;
 use std::time::Duration;
 
 #[derive(PartialEq, Clone)]
 struct ListenPort {
     port: u16,
+    ip: String,
     protocol: Protocol,
     app: String,
 }
@@ -55,6 +61,18 @@ fn detect_open_port() -> Vec<ListenPort> {
             Ok(port) => port,
             Err(_) => continue,
         };
+        let port_str = row.get(header.len() - 1).unwrap_or(&"a");
+        let mut ip: String = match row.get(header.len() - 1) {
+            Some(port) => port
+                .split(':')
+                .take(port_str.split(':').count() - 1)
+                .collect::<Vec<&str>>()
+                .join(":"),
+            None => continue,
+        };
+        if ip == "*" {
+            ip = "localhost".to_string();
+        }
         let proto = match Protocol::decode(
             row[header
                 .iter()
@@ -70,6 +88,7 @@ fn detect_open_port() -> Vec<ListenPort> {
         };
         let item = ListenPort {
             port,
+            ip,
             protocol: proto,
             app,
         };
@@ -90,13 +109,11 @@ fn send_close_port(port: ListenPort) {
     println!("INFO: Closing Port {port}", port = port.port);
 }
 
-fn port_manager(sender: Sender<Message>) {
-    let mut open_port_list: Vec<ListenPort> = Vec::new();
-
+fn port_manager(sender: Sender<Message>, port_register: Arc<RwLock<HashMap<u16, ListenPort>>>) {
     loop {
         let new_list = detect_open_port();
         for port in new_list.clone() {
-            if !open_port_list.contains(&port) {
+            if !port_register.read().unwrap().contains_key(&port.port) {
                 let port1 = port.clone();
                 println!(
                     "INFO: New Open Port\nPort: {pro:?} {port}\nRunning: {app}",
@@ -105,18 +122,19 @@ fn port_manager(sender: Sender<Message>) {
                     app = port1.app
                 );
                 sender.send(request_new_port(&port)).unwrap();
-                open_port_list.push(port.clone());
+                port_register.write().unwrap().insert(port.port, port);
             }
         }
-        for (i, port) in open_port_list.clone().iter().enumerate() {
-            if !new_list.contains(port) {
-                send_close_port(port.clone());
-                open_port_list.remove(i);
+        for (port, listen_port) in port_register.read().unwrap().iter() {
+            if !new_list.contains(listen_port) {
+                send_close_port(listen_port.clone());
+                port_register.write().unwrap().remove(port);
             }
         }
         thread::sleep(Duration::from_secs(5));
     }
 }
+
 
 fn get_inital_connection(port: u16) -> TcpStream {
     loop {
@@ -130,6 +148,62 @@ fn get_inital_connection(port: u16) -> TcpStream {
     }
 }
 
+fn handle_message(
+    message: Message,
+    sender: Sender<Message>,
+    port_register: Arc<RwLock<HashMap<u16, ListenPort>>>,
+) {
+    if message.header.function == Function::Tcp {
+        let request = message;
+        thread::spawn(move || {
+            let service = port_register
+                .read()
+                .unwrap()
+                .get(&request.header.port)
+                .unwrap()
+                .clone();
+            let mut stream = TcpStream::connect(format!("{}:{}", service.ip, request.header.port))
+                .unwrap_or_else(|err| {
+                    panic!(
+                        "Error: Unable to connect to Socket localhost:{}\n{err}",
+                        request.header.port
+                    )
+                });
+            stream.write_all(&request.body).unwrap();
+            let mut buffer = Vec::new();
+            stream.read_to_end(&mut buffer).unwrap();
+            sender
+                .send(create_message(request.header.port, Function::Tcp, buffer))
+                .unwrap();
+        });
+    } else {
+        eprintln!(
+            "INFO: This Function is currently not supported {:#?}",
+            message.header.function
+        );
+    }
+}
+
+fn client_read_stream(
+    stream: TcpStream,
+    sender: Sender<Message>,
+    port_register: Arc<RwLock<HashMap<u16, ListenPort>>>,
+) {
+    loop {
+        match read_message(&stream) {
+            Ok(message) => match message {
+                Some(message) => handle_message(message, sender.clone(), port_register.clone()),
+                None => {
+                    eprintln!("Socket closed!");
+                    break;
+                }
+            },
+            Err(err) => eprintln!("Something went wrong with the message:\n{err}"),
+        }
+    }
+}
+
+
 fn main() {
     let port = env::args()
         .nth(1)
@@ -137,12 +211,15 @@ fn main() {
         .parse::<u16>()
         .unwrap_or(28258);
     let stream = get_inital_connection(port);
+    let port_register: Arc<RwLock<HashMap<u16, ListenPort>>> =
+        Arc::new(RwLock::new(HashMap::new()));
     let (sender, receiver) = channel();
     let read_stream = stream.try_clone().expect("Unable to clone stream");
     let write_stream = stream.try_clone().expect("Unable to clone stream");
     let port_sender = sender.clone();
-    let port_thread = thread::spawn(|| port_manager(port_sender));
-    thread::spawn(|| client_read_stream(read_stream, sender));
+    let port_manager_register = port_register.clone();
+    let port_thread = thread::spawn(move || port_manager(port_sender, port_manager_register));
+    thread::spawn(move || client_read_stream(read_stream, sender, port_register));
     thread::spawn(|| client_write_stream(write_stream, receiver));
     port_thread.join().unwrap();
 }

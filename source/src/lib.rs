@@ -69,9 +69,9 @@ mod test_function {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Header {
-    message_size: u32,
-    function: Function,
-    port: u16,
+    pub message_size: u32,
+    pub function: Function,
+    pub port: u16,
 }
 
 impl Header {
@@ -275,7 +275,7 @@ fn read_header(stream: &TcpStream) -> Result<Option<Header>, std::io::Error> {
     Ok(Some(Header::decode(&header_buffer)))
 }
 
-fn read_message(stream: &TcpStream) -> Result<Option<Message>, std::io::Error> {
+pub fn read_message(stream: &TcpStream) -> Result<Option<Message>, std::io::Error> {
     let header = match read_header(stream)? {
         Some(header) => header,
         None => return Ok(None),
@@ -490,46 +490,5 @@ pub fn client_write_stream(mut stream: TcpStream, receiver: Receiver<Message>) {
             Ok(_) => {}
             Err(err) => eprintln!("ERROR: Unable to forward Message:\n{err}"),
         };
-    }
-}
-
-fn handle_message(message: Message, sender: Sender<Message>) {
-    if message.header.function == Function::Tcp {
-        let request = message;
-        thread::spawn(move || {
-            let mut stream = TcpStream::connect(format!("localhost:{}", request.header.port))
-                .unwrap_or_else(|err| {
-                    panic!(
-                        "Error: Unable to connect to Socket localhost:{}\n{err}",
-                        request.header.port
-                    )
-                });
-            stream.write_all(&request.body).unwrap();
-            let mut buffer = Vec::new();
-            stream.read_to_end(&mut buffer).unwrap();
-            sender
-                .send(create_message(request.header.port, Function::Tcp, buffer))
-                .unwrap();
-        });
-    } else {
-        eprintln!(
-            "INFO: This Function is currently not supported {:#?}",
-            message.header.function
-        );
-    }
-}
-
-pub fn client_read_stream(stream: TcpStream, sender: Sender<Message>) {
-    loop {
-        match read_message(&stream) {
-            Ok(message) => match message {
-                Some(message) => handle_message(message, sender.clone()),
-                None => {
-                    eprintln!("Socket closed!");
-                    break;
-                }
-            },
-            Err(err) => eprintln!("Something went wrong with the message:\n{err}"),
-        }
     }
 }
