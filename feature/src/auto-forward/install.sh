@@ -43,9 +43,11 @@ mkdir "${DOWNLOAD_DIR}"
 # Downloading Binary File
 if [ "$VERSION" = "latest" ];
 then
-curl -sL "https://github.com/munsman/autoForward/releases/latest/download/container_x86_64" >> "$DOWNLOAD_DIR/$BINARY"
+echo "https://github.com/munsman/autoForward/releases/latest/download/container_x86_64"
+curl -sL --output "$DOWNLOAD_DIR/$BINARY" "https://github.com/munsman/autoForward/releases/latest/download/container_x86_64"
 else
-curl -sL "https://github.com/MunsMan/autoForward/releases/download/${VERSION}/container_x86_64" >> "$DOWNLOAD_DIR/$BINARY"
+echo "https://github.com/MunsMan/autoForward/releases/download/${VERSION}/container_x86_64"
+curl -sL --output "$DOWNLOAD_DIR/$BINARY" "https://github.com/MunsMan/autoForward/releases/download/${VERSION}/container_x86_64"
 fi
 
 # Setting up the local Feature Directory
@@ -79,7 +81,7 @@ EOF
 
 cd "${PROJECT_DIR}"
 mv "${DOWNLOAD_DIR}/${BINARY}" "${PROJECT_DIR}/${BINARY}"
-echo | ls
+echo | ls -ls
 chmod +x "${BINARY}"
 chmod +x entrypoint.sh
 
