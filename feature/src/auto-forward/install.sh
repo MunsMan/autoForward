@@ -41,9 +41,12 @@ BINARY="container"
 mkdir "${DOWNLOAD_DIR}"
 
 # Downloading Binary File
-curl -sL "https://github.com/munsman/autoForward/releases/${VERSION}/download/container_x86_64" >> "$DOWNLOAD_DIR/$BINARY"
-
-
+if [ "$VERSION" = "latest" ];
+then
+curl -sL "https://github.com/munsman/autoForward/releases/latest/download/container_x86_64" >> "$DOWNLOAD_DIR/$BINARY"
+else
+curl -sL "https://github.com/MunsMan/autoForward/releases/download/${VERSION}/container_x86_64" >> "$DOWNLOAD_DIR/$BINARY"
+fi
 
 # Setting up the local Feature Directory
 mkdir "${PROJECT_DIR}"
