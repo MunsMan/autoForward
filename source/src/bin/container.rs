@@ -118,14 +118,25 @@ fn port_manager(sender: Sender<Message>) {
     }
 }
 
+fn get_inital_connection(port: u16) -> TcpStream {
+    loop {
+        match TcpStream::connect(format!("host.docker.internal:{port}")) {
+            Ok(stream) => return stream,
+            Err(err) => {
+                eprintln!("Unable to connect to Host\nERROR: {err}")
+            }
+        };
+        thread::sleep(Duration::from_secs(5));
+    }
+}
+
 fn main() {
     let port = env::args()
         .nth(1)
         .unwrap_or("28258".to_string())
         .parse::<u16>()
         .unwrap_or(28258);
-    let stream = TcpStream::connect(format!("host.docker.internal:{port}"))
-        .expect("ERROR: Unable to connect to Socket");
+    let stream = get_inital_connection(port);
     let (sender, receiver) = channel();
     let read_stream = stream.try_clone().expect("Unable to clone stream");
     let write_stream = stream.try_clone().expect("Unable to clone stream");
