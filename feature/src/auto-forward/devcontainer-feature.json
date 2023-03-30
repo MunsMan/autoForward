@@ -1,6 +1,6 @@
 {
   "id": "auto-forward",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "name": "Automatic Port Forwading to Host",
   "documentationURL": "https://github.com/MunsMan/autoForward",
   "entrypoint": "/usr/local/share/auto_forward/entrypoint.sh",
