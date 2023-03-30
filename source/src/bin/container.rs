@@ -135,6 +135,19 @@ fn port_manager(sender: Sender<Message>, port_register: Arc<RwLock<HashMap<u16, 
     }
 }
 
+
+fn get_inital_connection(port: u16) -> TcpStream {
+    loop {
+        match TcpStream::connect(format!("host.docker.internal:{port}")) {
+            Ok(stream) => return stream,
+            Err(err) => {
+                eprintln!("Unable to connect to Host\nERROR: {err}")
+            }
+        };
+        thread::sleep(Duration::from_secs(5));
+    }
+}
+
 fn handle_message(
     message: Message,
     sender: Sender<Message>,
@@ -190,12 +203,6 @@ fn client_read_stream(
     }
 }
 
-// fn main() {
-//     let new_list = detect_open_port();
-//     for port in new_list.iter() {
-//         println!("Port found: {} with ip: {}", port.port, port.ip);
-//     }
-// }
 
 fn main() {
     let port = env::args()
@@ -203,8 +210,7 @@ fn main() {
         .unwrap_or("28258".to_string())
         .parse::<u16>()
         .unwrap_or(28258);
-    let stream = TcpStream::connect(format!("host.docker.internal:{port}"))
-        .expect("ERROR: Unable to connect to Socket");
+    let stream = get_inital_connection(port);
     let port_register: Arc<RwLock<HashMap<u16, ListenPort>>> =
         Arc::new(RwLock::new(HashMap::new()));
     let (sender, receiver) = channel();
