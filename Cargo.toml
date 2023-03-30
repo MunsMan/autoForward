@@ -1,6 +1,6 @@
 [package]
 name = "auto_forward"
-version = "0.0.1"
+version = "0.0.5"
 edition = "2021"
 license = "MIT"
 description = "A Client Server Application for forwarding Port between a Docker Container and the Host"
