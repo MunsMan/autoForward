@@ -1,7 +1,7 @@
 # Container Auto Port Forwarding
 
-A Rust implementation for port forwarding from a [devContainer](https://containers.dev) to the Host.
-The goal is to provide a developer friendly experience similar to VS Code, but editor independent.
+`autoForward` is a [devContainer](https://containers.dev) Port Forwarding Application that bridges the gap between the development environments and the host system.
+The core functionalily revolves around forwarding postr from within a development conainer to the host environment, enabling efficient interaction and visualication of containerized content on the host machine's browser. The Project is written in Rust and utilizes a specialized transfer protocol on top of TCP tof seamless communication.
 
 ## Motivation
 
